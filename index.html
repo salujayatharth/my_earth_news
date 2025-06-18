@@ -1,0 +1,574 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI-Powered Target Operation Tracker</title>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto+Mono:wght@300;400;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary-text-color: rgba(229, 229, 229, 0.8);
+            --highlight-color: #e53e3e;
+            --background-color: #10121a;
+            --grid-color: rgba(255, 255, 255, 0.05);
+            --panel-bg-color: rgba(0, 0, 0, 0.3);
+            --font-family: 'Roboto Mono', monospace;
+            --gemini-button-bg: rgba(229, 62, 62, 0.2);
+            --gemini-button-hover-bg: rgba(229, 62, 62, 0.4);
+        }
+
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: var(--background-color);
+            color: var(--primary-text-color);
+            font-family: var(--font-family);
+            font-size: 14px;
+        }
+
+        #app-container {
+            width: 100%;
+            height: 100%;
+            position: relative;
+            background-image:
+                linear-gradient(var(--grid-color) 1px, transparent 1px),
+                linear-gradient(90deg, var(--grid-color) 1px, transparent 1px);
+            background-size: 30px 30px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        #globe-canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            outline: none;
+        }
+        
+        .ui-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+        }
+        
+        .ui-overlay > * {
+            pointer-events: all;
+        }
+
+        .time-selector {
+            position: absolute;
+            top: 30px;
+            right: 30px;
+            display: flex;
+            gap: 5px;
+            background-color: var(--panel-bg-color);
+            border: 1px solid var(--grid-color);
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        .time-selector button {
+            background-color: transparent;
+            border: none;
+            color: var(--primary-text-color);
+            padding: 10px 20px;
+            cursor: pointer;
+            font-family: var(--font-family);
+            transition: background-color 0.3s ease;
+            font-size: 12px;
+            text-transform: uppercase;
+        }
+        
+        .time-selector button:not(:last-child) {
+            border-right: 1px solid var(--grid-color);
+        }
+
+        .time-selector button.active,
+        .time-selector button:hover {
+            background-color: var(--highlight-color);
+            color: white;
+        }
+
+        .info-panel {
+            position: absolute;
+            width: 280px;
+            padding: 20px;
+            font-size: 13px;
+            line-height: 1.6;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        .info-panel h3 {
+            margin: 0;
+            color: white;
+            font-size: 16px;
+            font-weight: 400;
+        }
+        
+        .info-panel .location {
+            color: white;
+            font-size: 24px;
+            font-weight: 700;
+            margin-bottom: -10px;
+        }
+        
+        .gemini-output {
+            border-left: 2px solid var(--highlight-color);
+            padding-left: 10px;
+            font-size: 12px;
+            min-height: 50px;
+            white-space: pre-wrap;
+            opacity: 0.9;
+        }
+        
+        .gemini-button {
+            background-color: var(--gemini-button-bg);
+            border: 1px solid var(--highlight-color);
+            color: white;
+            padding: 8px 12px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-family: var(--font-family);
+            transition: background-color 0.3s ease;
+            width: 100%;
+        }
+        
+        .gemini-button:hover {
+            background-color: var(--gemini-button-hover-bg);
+        }
+        
+        .gemini-button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        
+        .loader {
+            font-size: 12px;
+            color: var(--highlight-color);
+        }
+
+        #panel-usa {
+            top: 15%;
+            left: 10%;
+        }
+
+        #panel-africa {
+            bottom: 15%;
+            right: 10%;
+        }
+        
+        .connector-line {
+            position: absolute;
+            stroke: var(--primary-text-color);
+            stroke-width: 1.5;
+            stroke-dasharray: 4 4;
+            fill: none;
+            pointer-events: none;
+        }
+        
+        .connector-dot {
+            position: absolute;
+            width: 8px;
+            height: 8px;
+            background-color: var(--highlight-color);
+            border-radius: 50%;
+            box-shadow: 0 0 10px var(--highlight-color), 0 0 20px var(--highlight-color);
+            transform: translate(-50%, -50%);
+        }
+
+        .timeline {
+            position: absolute;
+            bottom: 30px;
+            left: 5%;
+            right: 5%;
+            height: 60px;
+            display: flex;
+            align-items: flex-end;
+            justify-content: space-between;
+        }
+        
+        .timeline-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            color: var(--primary-text-color);
+            font-size: 12px;
+        }
+        
+        .timeline-bar {
+            width: 2px;
+            background-color: var(--primary-text-color);
+            margin-bottom: 8px;
+            transition: height 0.3s ease;
+        }
+
+        .country-highlight {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            top: 0;
+            left: 0;
+            pointer-events: none;
+        }
+
+        .country-highlight svg {
+            position: absolute;
+            overflow: visible;
+        }
+
+        .country-highlight path {
+            fill: none;
+            stroke: var(--highlight-color);
+            stroke-width: 2px;
+            filter: drop-shadow(0 0 5px var(--highlight-color));
+        }
+        
+        @media (max-width: 1200px) {
+            #panel-usa { left: 5%; }
+            #panel-africa { right: 5%; }
+        }
+
+        @media (max-width: 900px) {
+            .info-panel { width: 220px; }
+            #panel-usa { top: 10%; left: 3%; }
+            #panel-africa { bottom: 10%; right: 3%; }
+            .timeline { left: 2%; right: 2%; }
+        }
+        
+        @media (max-width: 768px) {
+            body { font-size: 12px; }
+            .time-selector { top: 15px; right: 15px; }
+            .time-selector button { padding: 8px 12px; }
+            .info-panel { position: relative; width: 90%; top: auto; left: auto; right: auto; bottom: auto; margin: 15px auto; text-align: left; background: var(--panel-bg-color); border-radius: 8px; padding: 15px;}
+            .ui-overlay { display: flex; flex-direction: column; justify-content: space-between; padding-top: 70px; }
+            .connector-line, .connector-dot, .country-highlight { display: none; }
+            .timeline { position: relative; bottom: 0; width: 100%; left: 0; right: 0; padding: 0 15px 15px; box-sizing: border-box; }
+        }
+
+    </style>
+</head>
+<body>
+
+    <div id="app-container">
+        <canvas id="globe-canvas"></canvas>
+        
+        <div class="ui-overlay">
+            <div class="time-selector">
+                <button class="active">1 Day</button>
+                <button>1 Week</button>
+                <button>1 Month</button>
+            </div>
+
+            <div id="panel-usa" class="info-panel">
+                <h3>Target Operation ...</h3>
+                <div class="location">USA</div>
+                <div id="briefing-usa" class="gemini-output">Briefing will appear here...</div>
+                <button id="generate-briefing-usa" class="gemini-button">✨ Generate Intel Briefing</button>
+                <div id="plan-usa" class="gemini-output">Action plan will appear here...</div>
+                <button id="generate-plan-usa" class="gemini-button" disabled>✨ Suggest Action Plan</button>
+            </div>
+            
+            <div id="panel-africa" class="info-panel">
+                <h3>Target Operation</h3>
+                <div class="location">AFRICA</div>
+                <div id="briefing-africa" class="gemini-output">Briefing will appear here...</div>
+                <button id="generate-briefing-africa" class="gemini-button">✨ Generate Intel Briefing</button>
+                <div id="plan-africa" class="gemini-output">Action plan will appear here...</div>
+                <button id="generate-plan-africa" class="gemini-button" disabled>✨ Suggest Action Plan</button>
+            </div>
+
+            <svg id="connector-svg" class="connector-line" width="100%" height="100%">
+                <path id="line-usa" d="M0,0 L100,100" />
+                <path id="line-africa" d="M0,0 L100,100" />
+            </svg>
+            <div id="dot-usa" class="connector-dot"></div>
+            <div id="dot-africa" class="connector-dot"></div>
+
+            <div class="country-highlight">
+                <svg id="svg-usa" viewBox="0 0 960 500">
+                    <path d="M221,41L221,41L222,43L220,44L218,44L216,42L213,43L211,43L209,45L208,47L208,49L209,51L209,53L207,55L205,55L203,56L202,59L202,61L203,63L203,66L204,68L204,71L202,74L200,75L198,75L197,73L195,72L194,70L193,68L191,67L190,66L189,64L188,62L188,60L189,58L189,56L188,54L188,52L187,50L187,48L188,46L188,44L187,42L185,41L183,41L181,42L179,42L177,41L175,41L173,42L171,42L169,41L167,41L165,42L163,42L161,41L159,41L157,42L155,42L153,41L151,41L149,42L147,42L145,41L143,41L141,42L139,42L137,41L135,41L133,42L131,42L129,41L127,41L125,42L123,42L121,41L119,41L117,42L115,42L113,41L111,41L109,42L107,42L105,41L103,41L101,42L99,42L97,41L95,41L93,42L91,42L89,41L87,41L85,42L83,42L81,41L79,41L77,42L75,42L73,41L71,41L69,42L67,42L65,41L63,41L61,42L59,42L57,41L55,41L53,42L51,42L49,41L47,41L45,42L43,42L41,41L40,41L39,42L38,44L38,46L39,48L40,50L41,52L42,54L43,56L44,58L45,60L46,62L47,64L48,66L49,68L50,70L51,72L52,74L53,76L54,78L55,80L56,82L57,84L58,86L59,88L60,90L61,92L62,94L63,96L64,98L65,100L66,102L67,104L68,106L69,108L70,110L71,112L72,114L73,116L74,118L75,120L76,122L77,124L78,126L79,128L80,130L81,132L82,134L83,136L84,138L85,140L86,142L87,144L88,146L89,148L90,150L91,152L92,154L93,156L94,158L95,160L96,162L97,164L98,166L99,168L100,170L101,172L102,174L103,176L104,178L105,180L106,182L107,184L108,186L109,188L110,190L111,192L112,194L113,196L114,198L115,200L116,202L117,204L118,206L119,208L120,210L121,212L122,214L123,216L124,218L125,220L126,222L127,224L128,226L129,228L130,230L131,232L132,234L133,236L134,238L135,240L136,242L137,244L138,246L139,248L140,250L141,252L142,254L143,256L144,258L145,260L146,262L147,264L148,266L149,268L150,270L151,272L152,274L153,276L154,278L155,280L156,282L157,284L158,286L159,288L160,290L161,292L162,294L163,296L164,298L165,300L166,302L167,304L168,306L169,308L170,310L171,312L172,314L173,316L174,318L175,320L176,322L177,324L178,326L179,328L180,330L181,332L182,334L183,336L184,338L185,340L186,342L187,344L188,346L189,348L190,350L191,352L192,354L193,356L194,358L195,360L196,362L197,364L198,366L199,368L200,370L201,372L202,374L203,376L204,378L205,380L206,382L207,384L208,386L209,388L210,390L211,392L212,394L213,396L214,398L215,400L216,402L217,404L218,406L219,408L220,410L221,412L222,414L223,416L224,418L225,420L226,422L227,424L228,426L229,428L230,430L231,432L232,434L233,436L234,438L235,440L236,442L237,444L238,446L239,448L240,450L241,452L242,454L243,456L244,458L245,460L246,462L247,464L248,466L249,468L250,470L251,472L252,474L253,476L254,478L255,480L256,482L257,484L258,486L259,488L260,490L261,492L262,494L263,496L264,498L265,500L266,498L267,496L268,494L269,492L270,490L271,488L272,486L273,484L274,482L275,480L276,478L277,476L278,474L279,472L280,470L281,468L282,466L283,464L284,462L285,460L286,458L287,456L288,454L289,452L290,450L291,448L292,446L293,444L294,442L295,440L296,438L297,436L298,434L299,432L300,430L301,428L302,426L303,424L304,422L305,420L306,418L307,416L308,414L309,412L310,410L311,408L312,406L313,404L314,402L315,400L316,398L317,396L318,394L319,392L320,390L321,388L322,386L323,384L324,382L325,380L326,378L327,376L328,374L329,372L330,370L331,368L332,366L333,364L334,362L335,360L336,358L337,356L338,354L339,352L340,350L341,348L342,346L343,344L344,342L345,340L346,338L347,336L348,334L349,332L350,330L351,328L352,326L353,324L354,322L355,320L356,318L357,316L358,314L359,312L360,310L361,308L362,306L363,304L364,302L365,300L366,298L367,296L368,294L369,292L370,290L371,288L372,286L373,284L374,282L375,280L376,278L377,276L378,274L379,272L380,270L381,268L382,266L383,264L384,262L385,260L386,258L387,256L388,254L389,252L390,250L391,248L392,246L393,244L394,242L395,240L396,238L397,236L398,234L399,232L400,230L401,228L402,226L403,224L404,222L405,220L406,218L407,216L408,214L409,212L410,210L411,208L412,206L413,204L414,202L415,200L416,198L417,196L418,194L419,192L420,190L421,188L422,186L423,184L424,182L425,180L426,178L427,176L428,174L429,172L430,170L431,168L432,166L433,164L434,162L435,160L436,158L437,156L438,154L439,152L440,150L441,148L442,146L443,144L444,142L445,140L446,138L447,136L448,134L449,132L450,130L451,128L452,126L453,124L454,122L455,120L456,118L457,116L458,114L459,112L460,110L461,108L462,106L463,104L464,102L465,100L466,98L467,96L468,94L469,92L470,90L471,88L472,86L473,84L474,82L475,80L476,78L477,76L478,74L479,72L480,70L481,68L482,66L483,64L484,62L485,60L486,58L487,56L488,54L489,52L490,50L491,48L492,46L493,44L494,42L495,40L496,38L497,36L498,34L499,32L500,30L499,28L498,26L497,24L496,22L495,20L494,18L493,16L492,14L491,12L490,10L489,8L488,6L487,4L486,2L485,0L484,2L483,4L482,6L481,8L480,10L479,12L478,14L477,16L476,18L475,20L474,22L473,24L472,26L471,28L470,30L469,32L468,34L467,36L466,38L465,40L464,42L463,44L462,46L461,48L460,50L459,52L458,54L457,56L456,58L455,60L454,62L453,64L452,66L451,68L450,70L449,72L448,74L447,76L446,78L445,80L444,82L443,84L442,86L441,88L440,90L439,92L438,94L437,96L436,98L435,100L434,102L433,104L432,106L431,108L430,110L429,112L428,114L427,116L426,118L425,120L424,122L423,124L422,126L421,128L420,130L419,132L418,134L417,136L416,138L415,140L414,142L413,144L412,146L411,148L410,150L409,152L408,154L407,156L406,158L405,160L404,162L403,164L402,166L401,168L400,170L399,172L398,174L397,176L396,178L395,180L394,182L393,184L392,186L391,188L390,190L389,192L388,194L387,196L386,198L385,200L384,202L383,204L382,206L381,208L380,210L379,212L378,214L377,216L376,218L375,220L374,222L373,224L372,226L371,228L370,230L369,232L368,234L367,236L366,238L365,240L364,242L363,244L362,246L361,248L360,250L359,252L358,254L357,256L356,258L355,260L354,262L353,264L352,266L351,268L350,270L349,272L348,274L347,276L346,278L345,280L344,282L343,284L342,286L341,288L340,290L339,292L338,294L337,296L336,298L335,300L334,302L333,304L332,306L331,308L330,310L329,312L328,314L327,316L326,318L325,320L324,322L323,324L322,326L321,328L320,330L319,332L318,334L317,336L316,338L315,340L314,342L313,344L312,346L311,348L310,350L309,352L308,354L307,356L306,358L305,360L304,362L303,364L302,366L301,368L300,370L299,372L298,374L297,376L296,378L295,380L294,382L293,384L292,386L291,388L290,390L289,392L288,394L287,396L286,398L285,400L284,402L283,404L282,406L281,408L280,410L279,412L278,414L277,416L276,418L275,420L274,422L273,424L272,426L271,428L270,430L269,432L268,434L267,436L266,438L265,440L264,442L263,444L262,446L261,448L260,450L259,452L258,454L257,456L256,458L255,460L254,462L253,464L252,466L251,468L250,470L249,472L248,474L247,476L246,478L245,480L244,482L243,484L242,486L241,488L240,490L239,492L238,494L237,496L236,498L235,500L234,498L233,496L232,494L231,492L230,490L229,488L228,486L227,484L226,482L225,480L224,478L223,476L222,474L221,472L220,470L219,468L218,466L217,464L216,462L215,460L214,458L213,456L212,454L211,452L210,450L209,448L208,446L207,444L206,442L205,440L204,438L203,436L202,434L201,432L200,430L199,428L198,426L197,424L196,422L195,420L194,418L193,416L192,414L191,412L190,410L189,408L188,406L187,404L186,402L185,400L184,398L183,396L182,394L181,392L180,390L179,388L178,386L177,384L176,382L175,380L174,378L173,376L172,374L171,372L170,370L169,368L168,366L167,364L166,362L165,360L164,358L163,356L162,354L161,352L160,350L159,348L158,346L157,344L156,342L155,340L154,338L153,336L152,334L151,332L150,330L149,328L148,326L147,324L146,322L145,320L144,318L143,316L142,314L141,312L140,310L139,308L138,306L137,304L136,302L135,300L134,298L133,296L132,294L131,292L130,290L129,288L128,286L127,284L126,282L125,280L124,278L123,276L122,274L121,272L120,270L119,268L118,266L117,264L116,262L115,260L114,258L113,256L112,254L111,252L110,250L109,248L108,246L107,244L106,242L105,240L104,238L103,236L102,234L101,232L100,230L99,228L98,226L97,224L96,222L95,220L94,218L93,216L92,214L91,212L90,210L89,208L88,206L87,204L86,202L85,200L84,198L83,196L82,194L81,192L80,190L79,188L78,186L77,184L76,182L75,180L74,178L73,176L72,174L71,172L70,170L69,168L68,166L67,164L66,162L65,160L64,158L63,156L62,154L61,152L60,150L59,148L58,146L57,144L56,142L55,140L54,138L53,136L52,134L51,132L50,130L49,128L48,126L47,124L46,122L45,120L44,118L43,116L42,114L41,112L40,110L39,108L38,106L37,104L36,102L35,100L34,98L33,96L32,94L31,92L30,90L29,88L28,86L27,84L26,82L25,80L24,78L23,76L22,74L21,72L20,70L19,68L18,66L17,64L16,62L15,60L14,58L13,56L12,54L11,52L10,50L9,48L8,46L7,44L6,42L5,40L4,38L3,36L2,34L1,32L0,30L1,28L2,26L3,24L4,22L5,20L6,18L7,16L8,14L9,12L10,10L11,8L12,6L13,4L14,2L15,0L16,2L17,4L18,6L19,8L20,10L21,12L22,14L23,16L24,18L25,20L26,22L27,24L28,26L29,28L30,30L31,32L32,34L33,36L34,38L35,40L36,42L37,44L38,46L39,48L40,50L41,52L42,54L43,56L44,58L45,60L46,62L47,64L48,66L49,68L50,70L51,72L52,74L53,76L54,78L55,80L56,82L57,84L58,86L59,88L60,90L61,92L62,94L63,96L64,98L65,100L66,102L67,104L68,106L69,108L70,110L71,112L72,114L73,116L74,118L75,120L76,122L77,124L78,126L79,128L80,130L81,132L82,134L83,136L84,138L85,140L86,142L87,144L88,146L89,148L90,150L91,152L92,154L93,156L94,158L95,160L96,162L97,164L98,166L99,168L100,170L101,172L102,174L103,176L104,178L105,180L106,182L107,184L108,186L109,188L110,190L111,192L112,194L113,196L114,198L115,200L116,202L117,204L118,206L119,208L120,210L121,212L122,214L123,216L124,218L125,220L126,222L127,224L128,226L129,228L130,230L131,232L132,234L133,236L134,238L135,240L136,242L137,244L138,246L139,248L140,250L141,252L142,254L143,256L144,258L145,260L146,262L147,264L148,266L149,268L150,270L151,272L152,274L153,276L154,278L155,280L156,282L157,284L158,286L159,288L160,290L161,292L162,294L163,296L164,298L165,300L166,302L167,304L168,306L169,308L170,310L171,312L172,314L173,316L174,318L175,320L176,322L177,324L178,326L179,328L180,330L181,332L182,334L183,336L184,338L185,340L186,342L187,344L188,346L189,348L190,350L191,352L192,354L193,356L194,358L195,360L196,362L197,364L198,366L199,368L200,370L201,372L202,374L203,376L204,378L205,380L206,382L207,384L208,386L209,388L210,390L211,392L212,394L213,396L214,398L215,400L216,402L217,404L218,406L219,408L220,410L221,41L221,41Z" />
+                </svg>
+            </div>
+
+            <div class="timeline">
+                <!-- Items are generated by JS -->
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            // --- THREE.JS SETUP ---
+            let scene, camera, renderer, globe, controls;
+
+            const targets = {
+                usa: { lat: 39.8283, lon: -98.5795 },
+                africa: { lat: 8.7832, lon: 20.4796 }
+            };
+
+            function init() {
+                scene = new THREE.Scene();
+                camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
+                camera.position.z = 3;
+
+                renderer = new THREE.WebGLRenderer({
+                    canvas: document.getElementById('globe-canvas'),
+                    alpha: true,
+                    antialias: true
+                });
+                renderer.setSize(window.innerWidth, window.innerHeight);
+                renderer.setPixelRatio(window.devicePixelRatio);
+
+                const ambientLight = new THREE.AmbientLight(0xffffff, 0.2);
+                scene.add(ambientLight);
+                const directionalLight = new THREE.DirectionalLight(0xffffff, 1.2);
+                directionalLight.position.set(5, 3, 5);
+                scene.add(directionalLight);
+
+                const geometry = new THREE.SphereGeometry(1, 64, 64);
+                const material = new THREE.MeshPhongMaterial({ color: 0x181a24, shininess: 5 });
+                globe = new THREE.Mesh(geometry, material);
+                scene.add(globe);
+
+                const wireframeGeometry = new THREE.SphereGeometry(1.005, 40, 40);
+                const wireframeMaterial = new THREE.MeshBasicMaterial({ color: 0x44475a, wireframe: true, transparent: true, opacity: 0.1 });
+                const wireframe = new THREE.Mesh(wireframeGeometry, wireframeMaterial);
+                globe.add(wireframe);
+
+                controls = new THREE.OrbitControls(camera, renderer.domElement);
+                controls.enableDamping = true;
+                controls.dampingFactor = 0.05;
+                controls.enableZoom = false;
+                controls.enablePan = false;
+                controls.autoRotate = true;
+                controls.autoRotateSpeed = 0.3;
+
+                createOrbitLine(1.4, 0.3);
+                createOrbitLine(1.6, -0.2);
+
+                window.addEventListener('resize', onWindowResize, false);
+                animate();
+                setupUI();
+            }
+
+            function createOrbitLine(radius, rotationX) {
+                const points = [];
+                const numPoints = 128;
+                for (let i = 0; i < numPoints + 1; i++) {
+                    const angle = (i / numPoints) * Math.PI * 2;
+                    points.push(new THREE.Vector3(Math.cos(angle) * radius, 0, Math.sin(angle) * radius));
+                }
+                const ellipseGeometry = new THREE.BufferGeometry().setFromPoints(points);
+                const ellipseMaterial = new THREE.LineDashedMaterial({ color: 0x44475a, dashSize: 0.05, gapSize: 0.025 });
+                const ellipse = new THREE.Line(ellipseGeometry, ellipseMaterial);
+                ellipse.computeLineDistances();
+                ellipse.rotation.x = rotationX;
+                ellipse.rotation.y = Math.random() * Math.PI;
+                scene.add(ellipse);
+            }
+
+            function onWindowResize() {
+                camera.aspect = window.innerWidth / window.innerHeight;
+                camera.updateProjectionMatrix();
+                renderer.setSize(window.innerWidth, window.innerHeight);
+                updateConnectors();
+            }
+
+            function animate() {
+                requestAnimationFrame(animate);
+                controls.update();
+                renderer.render(scene, camera);
+                updateConnectors();
+            }
+
+            // --- GEMINI API INTEGRATION ---
+            
+            async function callGemini(prompt) {
+                const apiKey = "";
+                const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
+                
+                const payload = {
+                    contents: [{ role: "user", parts: [{ text: prompt }] }]
+                };
+
+                try {
+                    const response = await fetch(apiUrl, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+
+                    if (!response.ok) {
+                        const errorBody = await response.text();
+                        throw new Error(`API call failed with status: ${response.status}. Body: ${errorBody}`);
+                    }
+
+                    const result = await response.json();
+                    
+                    if (result.candidates && result.candidates.length > 0 && result.candidates[0].content && result.candidates[0].content.parts && result.candidates[0].content.parts.length > 0) {
+                        return result.candidates[0].content.parts[0].text;
+                    } else {
+                        console.error("Unexpected response structure:", result);
+                        return "Error: Could not parse response from AI.";
+                    }
+                } catch (error) {
+                    console.error("Error calling Gemini API:", error);
+                    return `Error: ${error.message}. Check console for details.`;
+                }
+            }
+
+            async function generateContent(prompt, outputElement, triggerButton, nextButton) {
+                triggerButton.disabled = true;
+                if(nextButton) nextButton.disabled = true;
+                outputElement.innerHTML = '<span class="loader">Generating...</span>';
+
+                const resultText = await callGemini(prompt);
+                outputElement.textContent = resultText.trim();
+                
+                triggerButton.disabled = false;
+                if(nextButton) nextButton.disabled = false;
+            }
+
+
+            // --- UI AND CONNECTORS SETUP ---
+            function setupUI() {
+                // Timeline
+                const timelineContainer = document.querySelector('.timeline');
+                for (let i = 0; i < 8; i++) {
+                    const date = 22 + i;
+                    const item = document.createElement('div');
+                    item.className = 'timeline-item';
+                    const bar = document.createElement('div');
+                    bar.className = 'timeline-bar';
+                    bar.style.height = `${10 + Math.random() * 40}px`;
+                    const label = document.createElement('span');
+                    label.textContent = `06/${date}`;
+                    item.appendChild(bar);
+                    item.appendChild(label);
+                    timelineContainer.appendChild(item);
+                }
+
+                // Time selector button logic
+                const timeButtons = document.querySelectorAll('.time-selector button');
+                timeButtons.forEach(button => {
+                    button.addEventListener('click', () => {
+                        timeButtons.forEach(btn => btn.classList.remove('active'));
+                        button.classList.add('active');
+                    });
+                });
+
+                // Gemini button event listeners
+                const usaBriefingBtn = document.getElementById('generate-briefing-usa');
+                const usaPlanBtn = document.getElementById('generate-plan-usa');
+                const usaBriefingOutput = document.getElementById('briefing-usa');
+                const usaPlanOutput = document.getElementById('plan-usa');
+
+                const africaBriefingBtn = document.getElementById('generate-briefing-africa');
+                const africaPlanBtn = document.getElementById('generate-plan-africa');
+                const africaBriefingOutput = document.getElementById('briefing-africa');
+                const africaPlanOutput = document.getElementById('plan-africa');
+
+                usaBriefingBtn.addEventListener('click', () => {
+                    const prompt = "Generate a short, dramatic intelligence briefing (2-3 sentences) for a high-stakes target operation in the USA concerning a notorious international drug trafficker. The briefing should sound like it's from a futuristic command center terminal.";
+                    generateContent(prompt, usaBriefingOutput, usaBriefingBtn, usaPlanBtn);
+                });
+
+                usaPlanBtn.addEventListener('click', () => {
+                    const briefingText = usaBriefingOutput.textContent;
+                    const prompt = `Based on the following intelligence briefing: "${briefingText}", suggest a concise, high-level 3-step action plan for the surveillance teams. Format it as a numbered list.`;
+                    generateContent(prompt, usaPlanOutput, usaPlanBtn);
+                });
+
+                africaBriefingBtn.addEventListener('click', () => {
+                    const prompt = "Generate a short, dramatic intelligence briefing (2-3 sentences) for a high-stakes target operation in Africa. A high-level cyberattack was traced back to a hidden server farm in this district. The briefing should sound like it's from a futuristic command center terminal.";
+                    generateContent(prompt, africaBriefingOutput, africaBriefingBtn, africaPlanBtn);
+                });
+
+                africaPlanBtn.addEventListener('click', () => {
+                    const briefingText = africaBriefingOutput.textContent;
+                    const prompt = `Based on the following intelligence briefing: "${briefingText}", suggest a concise, high-level 3-step action plan for the counterintelligence teams. Format it as a numbered list.`;
+                    generateContent(prompt, africaPlanOutput, africaPlanBtn);
+                });
+            }
+
+            function latLonToVector3(lat, lon, radius = 1) {
+                const phi = (90 - lat) * (Math.PI / 180);
+                const theta = (lon + 180) * (Math.PI / 180);
+                const x = -(radius * Math.sin(phi) * Math.cos(theta));
+                const y = (radius * Math.cos(phi));
+                const z = (radius * Math.sin(phi) * Math.sin(theta));
+                return new THREE.Vector3(x, y, z);
+            }
+            
+            function toScreenPosition(vector, camera) {
+                const width = window.innerWidth, height = window.innerHeight;
+                const widthHalf = width / 2, heightHalf = height / 2;
+                vector.project(camera);
+                const x = (vector.x * widthHalf) + widthHalf;
+                const y = - (vector.y * heightHalf) + heightHalf;
+                return { x, y };
+            }
+
+            function updateConnectors() {
+                 if (window.innerWidth <= 768) return;
+              
+                const usaPanel = document.getElementById('panel-usa');
+                const usaDot = document.getElementById('dot-usa');
+                const usaLine = document.getElementById('line-usa');
+                const usaSVG = document.getElementById('svg-usa');
+                const africaPanel = document.getElementById('panel-africa');
+                const africaDot = document.getElementById('dot-africa');
+                const africaLine = document.getElementById('line-africa');
+                const africaSVG = document.getElementById('svg-africa');
+
+                // FIX: Add a guard clause to ensure elements exist before using them.
+                if (!usaPanel || !usaDot || !usaLine || !usaSVG || !africaPanel || !africaDot || !africaLine || !africaSVG) {
+                    return;
+                }
+                
+                const usaTarget3D = latLonToVector3(targets.usa.lat, targets.usa.lon, 1.01);
+                
+                usaTarget3D.applyQuaternion(globe.quaternion);
+                const usaScreenPos = toScreenPosition(usaTarget3D.clone(), camera);
+                const usaPanelRect = usaPanel.getBoundingClientRect();
+                usaDot.style.left = `${usaScreenPos.x}px`;
+                usaDot.style.top = `${usaScreenPos.y}px`;
+                usaSVG.style.left = `${usaScreenPos.x}px`;
+                usaSVG.style.top = `${usaScreenPos.y}px`;
+                const usaLineStartX = usaPanelRect.left + usaPanelRect.width;
+                const usaLineStartY = usaPanelRect.top + usaPanelRect.height / 2;
+                usaLine.setAttribute('d', `M${usaLineStartX},${usaLineStartY} L${usaScreenPos.x},${usaScreenPos.y}`);
+
+                
+                const africaTarget3D = latLonToVector3(targets.africa.lat, targets.africa.lon, 1.01);
+                
+                africaTarget3D.applyQuaternion(globe.quaternion);
+                const africaScreenPos = toScreenPosition(africaTarget3D.clone(), camera);
+                const africaPanelRect = africaPanel.getBoundingClientRect();
+                africaDot.style.left = `${africaScreenPos.x}px`;
+                africaDot.style.top = `${africaScreenPos.y}px`;
+                africaSVG.style.left = `${africaScreenPos.x}px`;
+                africaSVG.style.top = `${africaScreenPos.y}px`;
+                const africaLineStartX = africaPanelRect.left;
+                const africaLineStartY = africaPanelRect.top + africaPanelRect.height / 2;
+                africaLine.setAttribute('d', `M${africaLineStartX},${africaLineStartY} L${africaScreenPos.x},${africaScreenPos.y}`);
+            }
+
+            init();
+        });
+    </script>
+</body>
+</html>
